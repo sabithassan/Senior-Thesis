@@ -213,7 +213,7 @@ def readData (speakers, vecs, labels, train):
     print "reading data"
 
     speakerFiles = {}
-    # reads the target speaker.
+    # reads the speakers.
     for x in speakers:
         getFileNames(x, train)
     filenames = []
@@ -221,6 +221,7 @@ def readData (speakers, vecs, labels, train):
         filenames = filenames + speakerFiles[x]
 
     count = 0
+    ## reads all files
     for fi in filenames:
         count = count + 1
         try:
@@ -235,7 +236,8 @@ def readData (speakers, vecs, labels, train):
                     labels.append(x)
                     count += 1
                     found = True
-
+                    
+            ## label should be found
             if (count != 1):
                 print fi
             if (not found):
@@ -262,14 +264,13 @@ def normalize(X, mean, std):
     X = np.divide(np.subtract(X, mean), std)
     return X
 
-## performs verification task for target speaker    
-def main (target):
+## performs speaker identification task    
+def main ():
     global speakerFiles, speakerVecs, speakerLabels, allVecs, allLabels
     global vSpeakerVecs, vSpeakerLabels, vAllVecs, vAllLabels, mean, std
     
-    #target = 101
+
     allSpeakers = []
-    targetSpeaker = [str(target)]
     for x in range (101, 111):
         ##if (x != target):
         allSpeakers.append(str(x))
@@ -356,4 +357,4 @@ def main (target):
         
 
     
-main(101)
+main()
