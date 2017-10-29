@@ -145,6 +145,13 @@ def updateEntropy(classifier, vectors):
     allInd.append(ind)
     return ind
 
+
+## updates sample based on maxmin
+def updateMaxMin(classifier, vectors):
+    return
+
+
+
 ## trains active learner
 def trainActive(kern, vectors, labels, initial, others, measure):
     global allInd
