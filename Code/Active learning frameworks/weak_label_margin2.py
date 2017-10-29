@@ -162,21 +162,31 @@ def trainWeak(kern, vectors, labels, weaklabels, initial, others):
     print "training active learner with weak labels"
     ## chooses inital number of samples from available data
     ##training_samples = random.sample(range(0, len(vectors)), initial)
-    training_samples = getSamples(weaklabels, initial, 5)
+    training_samples = random.sample(range(0, len(vectors)), initial)
     training_vecs = vectors[training_samples]
     training_labels = labels[training_samples]
     active_classifier = createSVM2(kern, training_vecs, training_labels)
-    
+
+    tlabels = np.array(list(weaklabels))
+    for x in training_samples:
+        tlabels[x] = labels[x]
+
+    weak_classifier = createSVM2(kern, vectors, tlabels)
+    #for x in range (len(vectors)):
+        
+    #weak_classifer = 
 
     print "len vec", len(training_vecs), "len labels", len(training_labels)
     ## repeatedly adds sample
     for x in range (others):
         ## gets the sample and adds to data
-        sample = updateSamples(active_classifier, vectors)
+        sample = updateSamples(weak_classifier, vectors)
         print "sample to be updated", sample
         training_vecs = np.append(training_vecs, np.array([vectors[sample]]), axis = 0)
         training_labels = np.append(training_labels,labels[sample])
         ## updates classifier after each sample
+        tlabels[sample] = labels[sample]
+        weak_classifier = createSVM2(kern, vectors, tlabels)
         active_classifier = createSVM2(kern, training_vecs, training_labels)
     return active_classifier
 
@@ -236,12 +246,12 @@ def readData (speakers, vecs, labels, weak, train, target):
                 p = random.uniform(0.75, 0.90)
                 weak_label = flip(p)
                 labels.append(1)
-                weak.append(p)
+                weak.append(weak_label)
             else:
                 p = random.uniform(0.1, 0.25)
                 weak_label = flip(p)
                 labels.append(0)
-                weak.append(p)
+                weak.append(weak_label)
                 
             f.close()
         except:
@@ -341,8 +351,8 @@ def main (target):
     bestFar = 99
     bestFrr = 99
 
-    NTOTAL = 50
-    NINIT = 30
+    NTOTAL = 100
+    NINIT = 50
     NOTHER = NTOTAL - NINIT
     
     for x in T1:
