@@ -188,7 +188,7 @@ def trainWeak(kern, vectors, labels, weaklabels, initial, others):
         tlabels[sample] = labels[sample]
         weak_classifier = createSVM2(kern, vectors, tlabels)
         active_classifier = createSVM2(kern, training_vecs, training_labels)
-    return active_classifier
+    return (active_classifier,weak_classifier)
 
 
 ## trains passive learner
@@ -360,7 +360,7 @@ def main (target):
         ## trains active learner and passive learner
         print "data length", len(tAllVecs)
         passive_classifier = trainPassive("linear", tAllVecs, tAllLabels, NTOTAL)
-        active_classifier_w = trainWeak("linear", tAllVecs, tAllLabels, tAllWeak, NINIT, NOTHER)
+        (active_classifier_w, weak_classifier) = trainWeak("linear", tAllVecs, tAllLabels, tAllWeak, NINIT, NOTHER)
         active_classifier = trainActive("linear", tAllVecs, tAllLabels, NINIT, NOTHER)
         ## computes erros for passive learner
 
@@ -392,6 +392,16 @@ def main (target):
 
         print "false rejections active with weak labels", frr
         print "false acceptance active with weak labels", far
+
+        positives_active = predict(vSpeakerVecs, weak_classifier, x)
+        negatives_active = predict(vOtherVecs, weak_classifier, x)
+
+        frr = computeFRR(positives_active)
+        far = computeFAR(negatives_active)
+
+        print "false rejections active with all weak", frr
+        print "false acceptance active with all weak", far
+
 
         print NTOTAL, NINIT, NOTHER
         
