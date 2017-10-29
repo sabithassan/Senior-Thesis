@@ -351,8 +351,8 @@ def main (target):
     bestFar = 99
     bestFrr = 99
 
-    NTOTAL = 100
-    NINIT = 50
+    NTOTAL = 200
+    NINIT = 100
     NOTHER = NTOTAL - NINIT
     
     for x in T1:
