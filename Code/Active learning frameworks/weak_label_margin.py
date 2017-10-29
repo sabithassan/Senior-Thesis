@@ -4,6 +4,8 @@ import math
 import pickle
 import random
 import matplotlib.pyplot as plt
+from sklearn.cluster import KMeans
+
 
 ## file names
 speakerFiles = {}
@@ -11,14 +13,20 @@ speakerFiles = {}
 ## for training data
 speakerVecs = []
 speakerLabels = []
+speakerWeak = []
+
 otherVecs = []
 otherLabels = []
+otherWeak = []
 
 ## for verification data
 vSpeakerVecs = []
 vSpeakerLabels = []
+vSpeakerWeak = []
+
 vOtherVecs = []
 vOtherLabels = []
+vOtherWeak = []
 
 ## keeping track globally
 allInd = []
@@ -101,13 +109,36 @@ def updateSamples (classifier, vectors):
     allInd.append(ind)
     return ind
 
+def getSamples(weaklabels, n, K):
+    print "number of weaklabels", len(weaklabels)
+    weaklabels = weaklabels.reshape(-1, 1)
+    
+    kmeans = KMeans(n_clusters=K, random_state=0).fit(weaklabels)
+    clusterpoints = {}
+
+    for x in range (10):
+        clusterpoints [x] = []
+    
+    for x in range (len(kmeans.labels_)):
+        clusterpoints[kmeans.labels_[x]].append(x)
+    
+    samples = []
+    for i in range (K):
+        samp = random.sample(range(0, len(clusterpoints[i])), n/K)
+        samples += samp
+
+    return samples
+            
+    
+
 
 ## trains active learner
 def trainActive(kern, vectors, labels, initial, others):
-    allInd = []
-    print "training active learner"
+
+    print "training active learner "
     ## chooses inital number of samples from available data
     training_samples = random.sample(range(0, len(vectors)), initial)
+    ##training_samples = getSamples(weaklabels, initial, 5)
     training_vecs = vectors[training_samples]
     training_labels = labels[training_samples]
     active_classifier = createSVM2(kern, training_vecs, training_labels)
@@ -125,68 +156,27 @@ def trainActive(kern, vectors, labels, initial, others):
     return active_classifier
 
 
-## updates according to maxmin
-def updateMaxMin(vectors, training_vecs, training_labels, kern):
-    max_margin = -99999999
-    sample = -1;
-    for x in range (len(vectors)):
-        if x not in allInd:
-            ## gets vector
-            try_vecs = np.append(training_vecs, np.array([vectors[x]]), axis = 0)
-            ## tries value for label
-            try_label_0 = np.append(training_labels, 0)
-            try_label_1 = np.append(training_labels, 1)
+## trains active learner with weak labels
+def trainWeak(kern, vectors, labels, weaklabels, initial, others):
 
-            ## creates two classifiers based on different label
-            classifier_0 = createSVM2(kern, try_vecs, try_label_0)
-            classifier_1 = createSVM2(kern, try_vecs, try_label_1)
-
-            margin_0 = -classifier_0.decision_function(np.array([vectors[x]]))
-            margin_1 = classifier_1.decision_function(np.array([vectors[x]]))
-
-            ##print "printing margins", margin_0, margin_1
-
-            min_margin = min(margin_0[0], margin_1[0])
-            if (min_margin > max_margin):
-                max_margin = min_margin
-                sample = x
-
-    
-    if (sample == -1):
-        print "INDEX IS -1, something wrong"
-
-    allInd.append(sample)
-    print "max margin:", max_margin    
-    return sample
-            
-
-                                                  
-        
-
-def trainMaxMin(kern, vectors, labels, initial, others):
-    global allInd
-    print "training maxMin learner"
-    allInd = []
+    print "training active learner with weak labels"
     ## chooses inital number of samples from available data
-    training_samples = random.sample(range(0, len(vectors)), initial)
-    ##allInd = training_samples
-    
+    ##training_samples = random.sample(range(0, len(vectors)), initial)
+    training_samples = getSamples(weaklabels, initial, 5)
     training_vecs = vectors[training_samples]
     training_labels = labels[training_samples]
     active_classifier = createSVM2(kern, training_vecs, training_labels)
 
-
-
+    print "len vec", len(training_vecs), "len labels", len(training_labels)
+    ## repeatedly adds sample
     for x in range (others):
         ## gets the sample and adds to data
-        sample = updateMaxMin(vectors, training_vecs, training_labels, kern)
-        print "sample to be updated", sample, x
+        sample = updateSamples(active_classifier, vectors)
+        print "sample to be updated", sample
         training_vecs = np.append(training_vecs, np.array([vectors[sample]]), axis = 0)
         training_labels = np.append(training_labels,labels[sample])
         ## updates classifier after each sample
         active_classifier = createSVM2(kern, training_vecs, training_labels)
-        
-
     return active_classifier
 
 
@@ -216,9 +206,12 @@ def predict(vectors, clf, T):
     
     return decisions
 
+## flips a coin with probability p
+def flip(p):
+    return 1 if random.random() < p else 0
 
 # reads training data.
-def readData (speakers, vecs, labels, train, target):
+def readData (speakers, vecs, labels, weak, train, target):
     global speakerFiles, speakerVecs, speakerLabels, otherVecs, otherLabels
     global vSpeakerVecs, vSpeakerLabels, vOtherVecs, vOtherLabels
     print "reading data"
@@ -239,9 +232,16 @@ def readData (speakers, vecs, labels, train, target):
             feat = pickle.load(f)
             vecs.append(feat)
             if (target):
+                p = random.uniform(0.75, 0.90)
+                weak_label = flip(p)
                 labels.append(1)
+                weak.append(p)
             else:
+                p = random.uniform(0.1, 0.25)
+                weak_label = flip(p)
                 labels.append(0)
+                weak.append(p)
+                
             f.close()
         except:
             print "Shouldnt be happening"
@@ -249,6 +249,14 @@ def readData (speakers, vecs, labels, train, target):
 
     print "done reading data"
 
+
+## plots det curve
+def DETCurve(fps,fns, fps2, fns2, speaker):
+    f1 = plt.figure("linear" + speaker)
+    plt.plot(fps,fns, label = "linear")
+    f2 = plt.figure("RBF" + speaker)
+    plt.plot(fps2,fns2, label = "rbf")
+    plt.show()
 
 ## normalizes data
 def normalize(X, mean, std):
@@ -259,6 +267,7 @@ def normalize(X, mean, std):
 def main (target):
     global speakerFiles, speakerVecs, speakerLabels, otherVecs, otherLabels
     global vSpeakerVecs, vSpeakerLabels, vOtherVecs, vOtherLabels, mean, std
+    global speakerWeak, otherWeak, vSpeakerWeak, vOtherWeak
     
     #target = 101
     otherSpeakers = []
@@ -270,12 +279,13 @@ def main (target):
     ## TRAINING DATA
             
     ## reads supervectors of target speaker
-    readData(targetSpeaker, speakerVecs, speakerLabels, True, True)    
+    readData(targetSpeaker, speakerVecs, speakerLabels, speakerWeak, True, True)    
     ## reads supervectors of all other speakers
-    readData(otherSpeakers, otherVecs, otherLabels, True, False)
+    readData(otherSpeakers, otherVecs, otherLabels, otherWeak, True, False)
     # all vectors and all labels
     tAllVecs = speakerVecs + otherVecs
     tAllLabels = speakerLabels + otherLabels
+    tAllWeak = speakerWeak + otherWeak
 
     ## computes mean and standard deviation
     tAllVecs = np.array(tAllVecs)
@@ -285,13 +295,16 @@ def main (target):
     ## normalizes data
     tAllVecs = normalize(tAllVecs, mean, std)
     tAllLabels = np.array(tAllLabels)
+    tAllWeak = np.array(tAllWeak)
 
     # converts into np arrays
     speakerVecs = np.array(speakerVecs)
     speakerLabels = np.array(speakerLabels)
+    speakerWeak = np.array(speakerWeak)
     
     otherVecs = np.array(otherVecs)
     otherLabels = np.array(otherLabels)
+    otherWeak = np.array(otherWeak)
 
     speakerVecs = normalize(speakerVecs, mean, std)
     otherVecs = normalize(otherVecs, mean, std)
@@ -300,15 +313,17 @@ def main (target):
     ## VERIFICATION DATA
     
     ## reads supervectors of target speaker
-    readData(targetSpeaker, vSpeakerVecs, vSpeakerLabels, False, True)
+    readData(targetSpeaker, vSpeakerVecs, vSpeakerLabels,vSpeakerWeak, False, True)
     vSpeakerVecs = np.array(vSpeakerVecs)
     vSpeakerLabels = np.array(vSpeakerLabels)
+    vSpeakerWeak = np.array(vSpeakerWeak)
     
 
     ## reads supervectors of all other speakers
-    readData(otherSpeakers, vOtherVecs, vOtherLabels, False, False)
+    readData(otherSpeakers, vOtherVecs, vOtherLabels,vOtherWeak, False, False)
     vOtherVecs = np.array(vOtherVecs)
     vOtherLabels = np.array(vOtherLabels)
+    vOtherWeak = np.array(vOtherWeak)
 
     ## normalizes data
     vSpeakerVecs = normalize(vSpeakerVecs, mean, std)
@@ -324,19 +339,21 @@ def main (target):
     EER = -9
     bestFar = 99
     bestFrr = 99
-    print "here i am"
-    NTOTAL = 100
-    NINIT = 50
+
+    NTOTAL = 50
+    NINIT = 30
     NOTHER = NTOTAL - NINIT
+    
     for x in T1:
         
         ## trains active learner and passive learner
         print "data length", len(tAllVecs)
         passive_classifier = trainPassive("linear", tAllVecs, tAllLabels, NTOTAL)
+        active_classifier_w = trainWeak("linear", tAllVecs, tAllLabels, tAllWeak, NINIT, NOTHER)
         active_classifier = trainActive("linear", tAllVecs, tAllLabels, NINIT, NOTHER)
-        max_min_classifier = trainMaxMin("linear", tAllVecs, tAllLabels, NINIT, NOTHER)        
-
         ## computes erros for passive learner
+
+
         positives_passive = predict(vSpeakerVecs, passive_classifier, x)
         negatives_passive = predict(vOtherVecs, passive_classifier, x)
 
@@ -345,19 +362,6 @@ def main (target):
 
         print "false rejections passive", frr
         print "false acceptance passive", far
-
-        positives_active = predict(vSpeakerVecs, max_min_classifier, x)
-        negatives_active = predict(vOtherVecs, max_min_classifier, x)
-
-        frr = computeFRR(positives_active)
-        far = computeFAR(negatives_active)
-
-        print "false rejections maxMin", frr
-        print "false acceptance maxMin", far
-
-
-
-
 
         positives_active = predict(vSpeakerVecs, active_classifier, x)
         negatives_active = predict(vOtherVecs, active_classifier, x)
@@ -368,7 +372,18 @@ def main (target):
         print "false rejections active", frr
         print "false acceptance active", far
 
+
+        positives_active = predict(vSpeakerVecs, active_classifier_w, x)
+        negatives_active = predict(vOtherVecs, active_classifier_w, x)
+
+        frr = computeFRR(positives_active)
+        far = computeFAR(negatives_active)
+
+        print "false rejections active with weak labels", frr
+        print "false acceptance active with weak labels", far
+
         print NTOTAL, NINIT, NOTHER
+        
     
 ## runs verification for speaker
 main(101)
