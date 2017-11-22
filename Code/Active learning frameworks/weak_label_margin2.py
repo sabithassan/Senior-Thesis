@@ -359,10 +359,11 @@ def main (target):
         
         ## trains active learner and passive learner
         print "data length", len(tAllVecs)
-        passive_classifier = trainPassive("linear", tAllVecs, tAllLabels, NTOTAL)
+        passive_classifier = trainPassive("linear", tAllVecs, tAllWeak, 960)
         (active_classifier_w, weak_classifier) = trainWeak("linear", tAllVecs, tAllLabels, tAllWeak, NINIT, NOTHER)
         active_classifier = trainActive("linear", tAllVecs, tAllLabels, NINIT, NOTHER)
         ## computes erros for passive learner
+
 
 
         positives_passive = predict(vSpeakerVecs, passive_classifier, x)
